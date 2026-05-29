@@ -15250,8 +15250,8 @@ def main(
     # Handle single query mode
     if query or image:
         query, single_query_images = _collect_query_images(query, image)
-        # Kanban workers spawn with ``hermes chat -q "work kanban task <id>"``;
-        # the actual task description lives in the task body. Mirror the
+        # Kanban workers spawn with an explicit lifecycle prompt; the actual
+        # task description lives in the task body. Mirror the
         # gateway/CLI behaviour for inbound images by scanning the body for
         # local image paths and http(s) image URLs and attaching them to the
         # worker's first turn. Without this, users who paste a screenshot

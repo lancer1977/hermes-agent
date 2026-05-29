@@ -4,10 +4,9 @@ When a kanban task body contains a local image path or an ``http(s)://``
 image URL, the worker must surface that image to the model on its first
 user turn — matching the CLI/gateway behaviour for inbound images.
 
-The dispatcher spawns the worker as
-``hermes -p <profile> chat -q "work kanban task <id>"``. The task body
-itself never appears in argv; the worker has to read it from the kanban
-DB during startup. These tests cover the round-trip:
+The dispatcher spawns the worker with an explicit lifecycle prompt. The
+task body itself never appears in argv; the worker has to read it from
+the kanban DB during startup. These tests cover the round-trip:
 
   task body  →  kanban_db.get_task  →  extract_image_refs  →
   build_native_content_parts  →  multimodal user turn
@@ -139,10 +138,10 @@ class TestBuildPartsFromTaskBody:
         paths, urls = extract_image_refs(body)
 
         # Mirrors the cli.py wiring: pass the worker's literal -q argument
-        # (the dispatcher uses ``"work kanban task <id>"``) plus the
-        # extracted refs through build_native_content_parts.
+        # (the dispatcher's explicit lifecycle prompt) plus the extracted
+        # refs through build_native_content_parts.
         parts, skipped = build_native_content_parts(
-            f"work kanban task {tid}",
+            kb._kanban_worker_prompt(tid),
             paths,
             image_urls=urls or None,
         )
@@ -151,7 +150,9 @@ class TestBuildPartsFromTaskBody:
         # text part + one image_url part
         assert len(parts) == 2
         assert parts[0]["type"] == "text"
-        assert parts[0]["text"].startswith(f"work kanban task {tid}")
+        assert parts[0]["text"].startswith(
+            f"You are a Hermes Kanban worker for task {tid}."
+        )
         assert f"[Image attached at: {img}]" in parts[0]["text"]
         assert parts[1]["type"] == "image_url"
         assert parts[1]["image_url"]["url"].startswith("data:image/png;base64,")
@@ -164,7 +165,7 @@ class TestBuildPartsFromTaskBody:
         paths, urls = extract_image_refs(body)
 
         parts, skipped = build_native_content_parts(
-            f"work kanban task {tid}",
+            kb._kanban_worker_prompt(tid),
             paths,
             image_urls=urls or None,
         )
@@ -188,7 +189,7 @@ class TestBuildPartsFromTaskBody:
         paths, urls = extract_image_refs(body)
 
         parts, skipped = build_native_content_parts(
-            f"work kanban task {tid}",
+            kb._kanban_worker_prompt(tid),
             paths,
             image_urls=urls or None,
         )
@@ -208,7 +209,7 @@ class TestBuildPartsFromTaskBody:
         paths, urls = extract_image_refs(body)
 
         parts, skipped = build_native_content_parts(
-            f"work kanban task {tid}",
+            kb._kanban_worker_prompt(tid),
             paths,
             image_urls=urls or None,
         )
@@ -217,7 +218,7 @@ class TestBuildPartsFromTaskBody:
         assert skipped == []
         assert len(parts) == 1
         assert parts[0]["type"] == "text"
-        assert parts[0]["text"] == f"work kanban task {tid}"
+        assert parts[0]["text"] == kb._kanban_worker_prompt(tid)
 
     def test_code_block_example_is_not_attached(self, kanban_home, tmp_path):
         # Only the real image outside the fenced code block should attach.

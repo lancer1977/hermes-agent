@@ -2121,12 +2121,23 @@ class TestSharedBoardPaths:
         kb._default_spawn(task, str(tmp_path / "ws"))
 
         env = captured["env"]
+        cmd = captured["cmd"]
         assert env["HERMES_KANBAN_DB"] == str(default_home / "kanban.db")
         assert env["HERMES_KANBAN_WORKSPACES_ROOT"] == str(
             default_home / "kanban" / "workspaces"
         )
         assert env["HERMES_KANBAN_TASK"] == "t_dispatch_env"
         assert env["HERMES_KANBAN_BRANCH"] == "wt/t_dispatch_env"
+        prompt = cmd[-1]
+        assert prompt == kb._kanban_worker_prompt("t_dispatch_env")
+        assert "First, call kanban_show()" in prompt
+        assert prompt.count("kanban_show()") == 1
+        assert "exactly one terminal lifecycle tool" in prompt
+        assert prompt.count("kanban_complete()") == 1
+        assert prompt.count("kanban_block()") == 1
+        assert "Use that final lifecycle tool as your last action" in prompt
+        assert "Do not answer conversationally" in prompt
+        assert "work kanban task" not in prompt
 
 
 # ---------------------------------------------------------------------------

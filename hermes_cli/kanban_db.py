@@ -6008,6 +6008,20 @@ def _worker_terminal_timeout_env(
     return str(desired)
 
 
+def _kanban_worker_prompt(task_id: str) -> str:
+    """Return the explicit lifecycle prompt used for dispatched workers."""
+    return (
+        f"You are a Hermes Kanban worker for task {task_id}.\n"
+        "First, call kanban_show() to load the task context.\n"
+        "Then do the work.\n"
+        "When you are finished, call exactly one terminal lifecycle tool: "
+        "kanban_complete() or kanban_block().\n"
+        "Use that final lifecycle tool as your last action; do not call any "
+        "other terminal lifecycle tools afterward.\n"
+        "Do not answer conversationally instead of using the lifecycle tools."
+    )
+
+
 def _default_spawn(
     task: Task,
     workspace: str,
@@ -6034,7 +6048,7 @@ def _default_spawn(
 
     profile_arg = normalize_profile_name(task.assignee)
 
-    prompt = f"work kanban task {task.id}"
+    prompt = _kanban_worker_prompt(task.id)
     env = dict(os.environ)
 
     # Inject HERMES_HOME so the worker reads the profile-scoped config.yaml

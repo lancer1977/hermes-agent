@@ -481,6 +481,25 @@ Flip between the two modes from the **Orchestration: Auto/Manual** pill at the t
 
 The decomposer's routing decisions depend on profile descriptions, which is a per-profile labeling primitive you set with `hermes profile create --description "..."`, `hermes profile describe <name> --text "..."`, `hermes profile describe <name> --auto` (LLM-generates from the profile's installed skills + model), or the dashboard's per-profile editor in the expanded **Orchestration settings** panel. Profiles without a description still appear in the roster — they're routable by name, just less precisely. The decomposer NEVER lands a child task with `assignee=None`: when the LLM picks an unknown profile, the child gets routed to `kanban.default_assignee` (or the active default profile if that's unset).
 
+### Blocked-iteration recovery
+
+Use this when a task keeps returning to `blocked` because the work itself is too broad or ambiguous, not because a single implementation detail failed.
+
+1. Classify the blocker.
+   - If the task is failing because of infrastructure, restore, timeout, or another tooling problem, fix the failure and retry the same card.
+   - If the task is blocked with a `review-required:` reason, keep the review handoff path and do not decompose it.
+   - If the task keeps cycling through the same blocked shape, treat it as an iteration-budget problem and split the work before retrying.
+2. Split the work into the smallest useful child cards.
+   - Discovery / source inventory
+   - Contract / design
+   - Implementation slice
+   - Verification / docs
+   - Integration / review
+3. Deduplicate before creating new child cards.
+   - Search the board for an existing card that already covers the same scope.
+   - Reuse or relink the existing card when you can.
+   - Create a new child card only when the work does not already have a dedicated card.
+
 Config knobs (all under `kanban:` in `~/.hermes/config.yaml`):
 
 | Key | Default | Purpose |

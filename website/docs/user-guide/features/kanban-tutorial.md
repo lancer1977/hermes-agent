@@ -242,6 +242,8 @@ hermes kanban create "Deploy to staging (missing creds)" \
 
 The dispatcher tries to spawn the worker. Spawn fails (`RuntimeError: AWS_ACCESS_KEY_ID not set`). The dispatcher releases the claim, increments a failure counter, and tries again next tick. Because this example sets `--max-retries 3`, the circuit trips after three consecutive failures: the task goes to `blocked` with outcome `gave_up`. If you omit the flag, Hermes uses `kanban.failure_limit` (default: 2). No more retries until a human unblocks it.
 
+If the card is blocked because the work is too broad rather than because the runtime is broken, use the blocked-iteration recovery pattern in the main Kanban guide before you retry the same shape.
+
 Click the blocked task:
 
 ![Circuit breaker — 2 spawn_failed + 1 gave_up](/img/kanban-tutorial/11-drawer-gave-up.png)

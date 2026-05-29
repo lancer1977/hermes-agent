@@ -10,13 +10,71 @@ reasoning configuration, temperature handling, and extra_body assembly.
 """
 
 import copy
+import json
+import re
 from typing import Any, Dict
 
 from agent.lmstudio_reasoning import resolve_lmstudio_effort
 from agent.moonshot_schema import is_moonshot_model, sanitize_moonshot_tools
 from agent.prompt_builder import DEVELOPER_ROLE_MODELS
 from agent.transports.base import ProviderTransport
-from agent.transports.types import NormalizedResponse, ToolCall, Usage
+from agent.transports.types import NormalizedResponse, ToolCall, Usage, build_tool_call
+
+
+_JSON_TOOL_CALL_RE = re.compile(
+    r"^\s*(?:```(?:json)?\s*)?(?P<body>.*?)(?:\s*```)?\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _coerce_content_json_tool_calls(content: str | None) -> list[ToolCall] | None:
+    """Recover bare JSON tool calls emitted as assistant text by weak local models.
+
+    Some OpenAI-compatible local servers/models ignore the structured tool-call
+    channel but still follow Hermes' tool schema by returning exactly a JSON
+    object like ``{"name": "kanban_show", "arguments": {}}`` (often inside a
+    ```json fenced block). Treat that narrow shape as a real tool call so the
+    normal tool executor/lifecycle protocol can proceed.
+
+    The parser intentionally accepts only content that is *nothing but* one
+    tool-call object or a list of such objects. Mixed prose stays normal text.
+    """
+    if not isinstance(content, str) or not content.strip():
+        return None
+
+    match = _JSON_TOOL_CALL_RE.match(content)
+    body = (match.group("body") if match else content).strip()
+    if not body:
+        return None
+
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+
+    items = parsed if isinstance(parsed, list) else [parsed]
+    if not items:
+        return None
+
+    tool_calls: list[ToolCall] = []
+    for idx, item in enumerate(items):
+        if not isinstance(item, dict):
+            return None
+        name = item.get("name")
+        arguments = item.get("arguments", {})
+        if not isinstance(name, str) or not name.strip():
+            return None
+        if not isinstance(arguments, dict):
+            return None
+        tool_calls.append(
+            build_tool_call(
+                id=f"call_content_json_{idx}",
+                name=name.strip(),
+                arguments=arguments,
+                recovered_from_content_json=True,
+            )
+        )
+    return tool_calls
 
 
 def _build_gemini_thinking_config(model: str, reasoning_config: dict | None) -> dict | None:
